@@ -131,17 +131,21 @@ namespace Carbon.Plugins
                 return;
             }
 
-            if (ent is BuildingBlock bb && _anchorToTrain.TryGetValue(bb.net.ID, out _))
+            if (ent is BuildingBlock bb)
             {
-                _anchorToTrain.Remove(bb.net.ID);
-                foreach (var kv in _data.Trains.ToList())
+                var bbId = SafeId(bb);
+                if (_anchorToTrain.TryGetValue(bbId, out _))
                 {
-                    if (kv.Value.AnchorIds.Remove(bb.net.ID))
+                    _anchorToTrain.Remove(bbId);
+                    foreach (var kv in _data.Trains.ToList())
                     {
-                        if (kv.Value.AnchorIds.Count == 0)
-                            _data.Trains.Remove(kv.Key);
-                        SaveData();
-                        break;
+                        if (kv.Value.AnchorIds.Remove(bbId))
+                        {
+                            if (kv.Value.AnchorIds.Count == 0)
+                                _data.Trains.Remove(kv.Key);
+                            SaveData();
+                            break;
+                        }
                     }
                 }
             }
@@ -276,9 +280,10 @@ namespace Carbon.Plugins
                 _data.Trains[tid] = rec;
             }
 
-            rec.AnchorIds.Add(bb.net.ID);
-            _anchorToTrain[bb.net.ID] = train;
-            _byId[bb.net.ID] = bb; // index the new anchor
+            var id = SafeId(bb);
+            rec.AnchorIds.Add(id);
+            _anchorToTrain[id] = train;
+            _byId[id] = bb; // index the new anchor
             SaveData();
 
             bb.SendNetworkUpdateImmediate();
@@ -319,7 +324,7 @@ namespace Carbon.Plugins
                     if (e == null || e.IsDestroyed)
                         kv.Value.AnchorIds.RemoveAt(i);
                     else
-                        _anchorToTrain[e.net.ID] = train;
+                        _anchorToTrain[SafeId(e)] = train;
                 }
             }
             SaveData();
@@ -488,6 +493,20 @@ namespace Carbon.Plugins
             }
             catch { return 0u; }
         }
+
+        private void LoadConfigValues()
+        {
+            _config = Config.ReadObject<Configuration>() ?? new Configuration();
+            SaveConfig();
+        }
+
+        protected override void LoadDefaultConfig() => _config = new Configuration();
+
+        private void LoadData() =>
+            _data = Interface.Oxide.DataFileSystem.ReadObject<StoredData>(Name) ?? new StoredData();
+
+        private void SaveData() =>
+            Interface.Oxide.DataFileSystem.WriteObject(Name, _data);
 
         private void Reply(BasePlayer p, string msg) =>
             PrintToChat(p, $"<color=#9ee7ff>[TrainBase]</color> {msg}");
